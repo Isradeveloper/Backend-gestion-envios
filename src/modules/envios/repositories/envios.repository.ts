@@ -11,7 +11,7 @@ export class EnvioRepository {
   private validTerms = new Set(['e.id', 'e.direccion', 'u.email']); // Asegurar solo términos permitidos
 
   private _mapEnvio(row: RowDataPacket): Envio {
-    const { usuario_id, name, email, ultimo_estado, ...rest } = row;
+    const { usuario_id, name, email, ultimo_estado, active, ...rest } = row;
     return Envio.fromObject({
       ...rest,
       user: { id: usuario_id, name, email },

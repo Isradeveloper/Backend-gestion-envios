@@ -10,3 +10,7 @@ export const formatValidationErrors = (
     return acc;
   }, {} as Record<string, string[]>);
 };
+
+export const TinyIntToBoolean = (value: number): boolean => {
+  return value === 1;
+};

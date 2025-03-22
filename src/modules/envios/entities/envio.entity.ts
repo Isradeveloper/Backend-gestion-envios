@@ -1,4 +1,5 @@
 import { User } from '../../auth';
+import { TinyIntToBoolean } from '../../common/utils';
 
 export class Envio {
   constructor(

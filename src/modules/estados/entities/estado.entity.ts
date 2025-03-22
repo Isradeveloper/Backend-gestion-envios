@@ -1,4 +1,5 @@
 import { RowDataPacket } from 'mysql2/promise';
+import { TinyIntToBoolean } from '../../common/utils';
 
 export class Estado {
   constructor(
@@ -13,7 +14,7 @@ export class Estado {
     return new Estado(
       row.id,
       new Date(row.created_at),
-      row.active,
+      TinyIntToBoolean(row.active),
       row.name,
       row.descripcion,
     );
