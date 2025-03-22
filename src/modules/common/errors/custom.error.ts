@@ -2,6 +2,7 @@ export class CustomError extends Error {
   private constructor(
     public readonly statusCode: number,
     public readonly message: string,
+    public readonly errors?: object,
   ) {
     super(message);
   }
@@ -24,5 +25,9 @@ export class CustomError extends Error {
 
   static internalServer(message: string) {
     return new CustomError(500, message);
+  }
+
+  static validation(errors: object) {
+    return new CustomError(400, 'Validation error', errors);
   }
 }
