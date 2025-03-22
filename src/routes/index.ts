@@ -1,34 +1,14 @@
 import { Router } from 'express';
 import { AuthRoutes } from '../modules/auth/routes';
+import { EstadoRoutes } from '../modules/estados/routes';
+import { AuthMiddleware } from '../modules/common/middlewares/auth.middleware';
 
 export class AppRoutes {
   static get routes(): Router {
     const router = Router();
 
     router.use('/api/auth', AuthRoutes.routes);
-
-    /**
-     * @swagger
-     * /:
-     *   get:
-     *     tags:
-     *       - Home
-     *     summary: Get home
-     *     responses:
-     *       200:
-     *         description: A message
-     *         content:
-     *           application/json:
-     *             schema:
-     *               type: object
-     *               properties:
-     *                 message:
-     *                   type: string
-     */
-    router.get('/', (req, res) => {
-      res.json({ message: 'Hello World!' });
-    });
-
+    router.use('/api/estados', AuthMiddleware.validateJWT, EstadoRoutes.routes);
     return router;
   }
 }
