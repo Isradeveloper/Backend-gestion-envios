@@ -39,6 +39,11 @@ export const handleMysqlError = (error: unknown, res: Response) => {
         message: 'Dato duplicado en la base de datos.',
       });
 
+    case 'ER_NO_REFERENCED_ROW_2':
+      return res.status(409).json({
+        message: 'Dato no encontrado en la base de datos.',
+      });
+
     default:
       return res.status(500).json({
         message: 'Error en la base de datos.',
