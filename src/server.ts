@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import path from 'path';
+import { swaggerMiddleware } from './config';
 
 interface Options {
   port: number;
@@ -21,6 +21,8 @@ export class Server {
 
   async start() {
     //* Middlewares
+
+    swaggerMiddleware(this.app);
     this.app.use(express.json()); // raw
     this.app.use(express.urlencoded({ extended: true })); // x-www-form-urlencoded
 

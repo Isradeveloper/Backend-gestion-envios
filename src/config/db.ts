@@ -12,6 +12,4 @@ import { envs } from './envs';
 //   queueLimit: 0,
 // });
 
-export const pool = mysql.createPool(
-  'mysql://root:kUQxBVpeZQdolRhsnpWOnGxpUYzDdROv@metro.proxy.rlwy.net:41950/gestion_envios',
-);
+export const pool = mysql.createPool(envs.DB_URL);
