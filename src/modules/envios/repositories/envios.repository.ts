@@ -1,4 +1,10 @@
-import { pool } from '../../../config';
+import {
+  clearRedis,
+  getRedisCache,
+  pool,
+  redisClient,
+  setRedisCache,
+} from '../../../config';
 import { PaginationDto } from '../../common/dtos';
 import { CustomError } from '../../common/errors';
 import { FiltersSearch, ResultPagination } from '../../common/interfaces';
@@ -65,6 +71,12 @@ export class EnvioRepository {
     term: string,
     value: string,
   ): Promise<RowDataPacket | null> {
+    const reply = await getRedisCache<RowDataPacket>(
+      `envios:simple:${term}:${value}`,
+    );
+
+    if (reply) return reply;
+
     const connection = await pool.getConnection();
     try {
       const [rows] = await connection.query<RowDataPacket[]>(
@@ -74,6 +86,7 @@ export class EnvioRepository {
       if (rows.length === 0) {
         return null;
       }
+      await setRedisCache(`envios:simple:${term}:${value}`, rows[0]);
       return rows[0];
     } catch (error) {
       throw error;
@@ -89,6 +102,12 @@ export class EnvioRepository {
 
     const connection = await pool.getConnection();
     try {
+      const reply = await getRedisCache<RowDataPacket>(
+        `envios:${term}:${value}`,
+      );
+
+      if (reply) return this._mapEnvio(reply);
+
       const [rows] = await connection.query<RowDataPacket[]>(
         `WITH ultimo_estado AS (
               SELECT 
@@ -119,7 +138,11 @@ export class EnvioRepository {
         [value],
       );
 
-      return rows.length > 0 ? this._mapEnvio(rows[0]) : null;
+      if (rows.length === 0) {
+        return null;
+      }
+      await setRedisCache(`envios:${term}:${value}`, rows[0]);
+      return this._mapEnvio(rows[0]);
     } catch (error) {
       throw error;
     } finally {
@@ -167,7 +190,17 @@ export class EnvioRepository {
 
     params.push(limit, offset);
 
+    const cacheKey = `envios:${search}:${JSON.stringify(filters)}:${
+      paginationDto.page
+    }:${paginationDto.size}`;
+
     try {
+      const cached = await getRedisCache<ResultPagination<Envio>>(cacheKey);
+
+      if (cached) {
+        return cached;
+      }
+
       const [rows] = await connection.query<RowDataPacket[]>(
         `WITH ultimo_estado AS (
             SELECT 
@@ -247,6 +280,7 @@ export class EnvioRepository {
       );
 
       const items = rows.map(this._mapEnvio);
+      await setRedisCache(cacheKey, { items, total });
       return { items, total };
     } catch (error) {
       throw error;
@@ -272,7 +306,6 @@ export class EnvioRepository {
         throw CustomError.badRequest('No se pudo crear el envío');
       }
 
-      // Insertar en la tabla "envios_estados"
       const [resultEstado] = await connection.query<ResultSetHeader>(
         `INSERT INTO envios_estados (envio_id, estado_id) VALUES (?, ?)`,
         [result.insertId, 2],
@@ -286,7 +319,8 @@ export class EnvioRepository {
 
       await connection.commit();
 
-      // Obtener el envío creado
+      await clearRedis('envios');
+
       const envio = await this.findEnvioByTerm(
         'e.id',
         result.insertId.toString(),
@@ -310,6 +344,14 @@ export class EnvioRepository {
   ): Promise<
     { peso: number; alto: number; ancho: number; largo: number; id: number }[]
   > {
+    const cached = await getRedisCache<
+      { peso: number; alto: number; ancho: number; largo: number; id: number }[]
+    >(`envios:ruta:${rutaId}`);
+
+    if (cached) {
+      return cached;
+    }
+
     const connection = await pool.getConnection();
     try {
       const [rows] = await connection.query<RowDataPacket[]>(
@@ -317,13 +359,17 @@ export class EnvioRepository {
         [rutaId],
       );
 
-      return rows.map((row) => ({
+      const envios = rows.map((row) => ({
         peso: Number(row.peso),
         alto: Number(row.alto),
         ancho: Number(row.ancho),
         largo: Number(row.largo),
         id: Number(row.id),
       }));
+
+      await setRedisCache(`envios:ruta:${rutaId}`, envios);
+
+      return envios;
     } catch (error) {
       throw error;
     } finally {
