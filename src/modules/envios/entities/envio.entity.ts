@@ -1,5 +1,6 @@
 import { User } from '../../auth';
 import { TinyIntToBoolean } from '../../common/utils';
+import { Ruta } from '../../rutas';
 
 export class Envio {
   constructor(
@@ -17,6 +18,8 @@ export class Envio {
     public readonly peso: number,
     public readonly tipoProducto: string,
     public readonly ultimoEstado: string,
+    public readonly ruta: Omit<Ruta, 'createdAt' | 'active'> | null,
+    public readonly codigo: string,
   ) {}
 
   static fromObject(row: any): Envio {
@@ -32,6 +35,8 @@ export class Envio {
       row.peso,
       row.tipoProducto,
       row.ultimoEstado,
+      row.ruta,
+      row.codigo,
     );
   }
 }

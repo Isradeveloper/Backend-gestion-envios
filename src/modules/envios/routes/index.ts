@@ -52,6 +52,54 @@ export class EnvioRoutes {
      *           type: string
      *           example: "En transito"
      *
+     *         ruta:
+     *          type: object
+     *          properties:
+     *            id:
+     *              type: integer
+     *              example: 12
+     *            origen:
+     *              type: string
+     *              example: "A"
+     *            destino:
+     *              type: string
+     *              example: "B"
+     *            estado:
+     *              type: string
+     *              example: "Pendiente"
+     *            fechaInicio:
+     *              type: string
+     *              example: null
+     *            fechaFin:
+     *              type: string
+     *              example: null
+     *            transportista:
+     *              type: object
+     *              properties:
+     *                id:
+     *                  type: integer
+     *                  example: 1
+     *                nombre:
+     *                  type: string
+     *                  example: "John Doe"
+     *                cedula:
+     *                  type: string
+     *                  example: "123456789"
+     *            vehiculo:
+     *              type: object
+     *              properties:
+     *                id:
+     *                  type: integer
+     *                  example: 1
+     *                placa:
+     *                  type: string
+     *                  example: "ABC-123"
+     *                peso_maximo:
+     *                  type: string
+     *                  example: "50.00"
+     *                volumen_maximo:
+     *                  type: string
+     *                  example: "150.00"
      *     CreateEnvio:
      *       type: object
      *       properties:
@@ -101,6 +149,41 @@ export class EnvioRoutes {
      *         in: query
      *         required: false
      *         description: Número de página
+     *         schema:
+     *           type: integer
+     *           example: 1
+     *       - name: estado
+     *         in: query
+     *         required: false
+     *         description: estado del envío
+     *         schema:
+     *           type: string
+     *           example: "Pendiente"
+     *       - name: search
+     *         in: query
+     *         required: false
+     *         description: búsqueda
+     *         schema:
+     *           type: string
+     *           example: "123 Main St"
+     *       - name: fechaInicio
+     *         in: query
+     *         required: false
+     *         description: fecha de inicio
+     *         schema:
+     *           type: string
+     *           example: "2023-01-01"
+     *       - name: fechaFin
+     *         in: query
+     *         required: false
+     *         description: fecha de fin
+     *         schema:
+     *           type: string
+     *           example: "2023-01-31"
+     *       - name: transportistaId
+     *         in: query
+     *         required: false
+     *         description: id del transportista
      *         schema:
      *           type: integer
      *           example: 1

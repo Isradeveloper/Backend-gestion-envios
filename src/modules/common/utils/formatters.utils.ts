@@ -14,3 +14,11 @@ export const formatValidationErrors = (
 export const TinyIntToBoolean = (value: number): boolean => {
   return value === 1;
 };
+
+export const BooleanToTinyInt = (value: boolean): number => {
+  return value ? 1 : 0;
+};
+
+export const convertDateToMySQL = (date: Date): string => {
+  return date.toISOString().slice(0, 19).replace('T', ' ');
+};

@@ -1,8 +1,9 @@
 import { pool } from '../../../config';
 import { PaginationDto } from '../../common/dtos';
 import { CustomError } from '../../common/errors';
-import { ResultPagination } from '../../common/interfaces';
+import { FiltersSearch, ResultPagination } from '../../common/interfaces';
 import { LimitOffset } from '../../common/utils';
+import { Filters } from '../controllers';
 import { CreateEnvioDto } from '../dtos/create-envio.dto';
 import { Envio } from '../entities/envio.entity';
 import { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
@@ -11,12 +12,74 @@ export class EnvioRepository {
   private validTerms = new Set(['e.id', 'e.direccion', 'u.email']); // Asegurar solo términos permitidos
 
   private _mapEnvio(row: RowDataPacket): Envio {
-    const { usuario_id, name, email, ultimo_estado, active, ...rest } = row;
+    const {
+      usuario_id,
+      name,
+      email,
+      ultimo_estado,
+      active,
+      ruta_id,
+      origen,
+      destino,
+      ruta_estado,
+      fecha_inicio,
+      fecha_fin,
+      transportista_id,
+      transportista_nombre,
+      transportista_cedula,
+      vehiculo_id,
+      vehiculo_placa,
+      peso_maximo,
+      volumen_maximo,
+      ...rest
+    } = row;
     return Envio.fromObject({
       ...rest,
       user: { id: usuario_id, name, email },
       ultimoEstado: ultimo_estado,
+      ruta: ruta_id
+        ? {
+            id: ruta_id,
+            origen,
+            destino,
+            estado: ruta_estado,
+            fechaInicio: fecha_inicio,
+            fechaFin: fecha_fin,
+            transportista: {
+              id: transportista_id,
+              nombre: transportista_nombre,
+              cedula: transportista_cedula,
+            },
+            vehiculo: {
+              id: vehiculo_id,
+              placa: vehiculo_placa,
+              peso_maximo,
+              volumen_maximo,
+            },
+          }
+        : null,
     });
+  }
+
+  static async simpleFindEnvioByTerm(
+    term: string,
+    value: string,
+  ): Promise<RowDataPacket | null> {
+    const connection = await pool.getConnection();
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT * FROM envios WHERE active = 1 AND ${term} = ?`,
+        [value],
+      );
+      if (rows.length === 0) {
+        return null;
+      }
+      return rows[0];
+    } catch (error) {
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   async findEnvioByTerm(term: string, value: string): Promise<Envio | null> {
@@ -28,25 +91,31 @@ export class EnvioRepository {
     try {
       const [rows] = await connection.query<RowDataPacket[]>(
         `WITH ultimo_estado AS (
-            SELECT 
-                ee.envio_id, 
-                ee.estado_id, 
-                es.name AS ultimo_estado,
-                ROW_NUMBER() OVER (PARTITION BY ee.envio_id ORDER BY ee.created_at DESC) AS rn
-            FROM envios_estados ee
-            INNER JOIN estados es ON ee.estado_id = es.id
-        )
-        SELECT 
-            e.id, e.created_at, e.direccion, e.alto, e.ancho, 
-            e.peso, e.largo, e.tipo_producto, 
-            u.id AS usuario_id, u.name, u.email,
-            ue.ultimo_estado
-        FROM envios e
-        INNER JOIN usuarios u ON e.usuario_id = u.id
-        LEFT JOIN ultimo_estado ue ON ue.envio_id = e.id AND ue.rn = 1
-        WHERE e.active = 1 
-          AND u.active = 1
-          AND ${term} = ?`,
+              SELECT 
+                  ee.envio_id, 
+                  ee.estado_id, 
+                  es.name AS ultimo_estado,
+                  ROW_NUMBER() OVER (PARTITION BY ee.envio_id ORDER BY ee.created_at DESC) AS rn
+              FROM envios_estados ee
+              INNER JOIN estados es ON ee.estado_id = es.id
+          )
+          SELECT 
+              e.id, e.created_at, e.direccion, e.alto, e.ancho, 
+              e.peso, e.largo, e.tipo_producto, 
+              u.id AS usuario_id, u.name, u.email,
+              ue.ultimo_estado,
+              r.id AS ruta_id, r.origen, r.destino, r.created_at AS ruta_creada,
+              r.estado AS ruta_estado, r.fecha_inicio, r.fecha_fin, r.active AS ruta_activa,
+              t.id AS transportista_id, t.nombre AS transportista_nombre, t.cedula AS transportista_cedula,
+              v.id AS vehiculo_id, v.volumen_maximo, v.peso_maximo, v.placa AS vehiculo_placa
+          FROM envios e
+          INNER JOIN usuarios u ON e.usuario_id = u.id
+          LEFT JOIN ultimo_estado ue ON ue.envio_id = e.id AND ue.rn = 1
+          LEFT JOIN rutas r ON e.ruta_id = r.id
+          LEFT JOIN transportistas t ON r.transportista_id = t.id
+          LEFT JOIN vehiculos v ON r.vehiculo_id = v.id
+          WHERE e.active = 1 
+            AND ${term} = ?`,
         [value],
       );
 
@@ -60,16 +129,45 @@ export class EnvioRepository {
 
   async getAllEnvios(
     paginationDto: PaginationDto,
+    filterSearch: FiltersSearch<Filters>,
   ): Promise<ResultPagination<Envio>> {
     const connection = await pool.getConnection();
+
+    const { filters, search } = filterSearch;
+    const searchValue = `%${search}%`;
+    const searchParams = Array(10).fill(searchValue);
+
+    let estadoFilterQuery = '';
+    const params = [...searchParams];
+
+    if (filters.estado) {
+      estadoFilterQuery += 'AND ue.ultimo_estado = ? ';
+      params.push(filters.estado);
+    }
+
+    if (filters.transportistaId && filters.transportistaId !== 0) {
+      estadoFilterQuery += 'AND t.id = ? ';
+      params.push(filters.transportistaId);
+    }
+
+    if (filters.fechaInicio) {
+      estadoFilterQuery += 'AND e.created_at >= ? ';
+      params.push(filters.fechaInicio);
+    }
+
+    if (filters.fechaFin) {
+      estadoFilterQuery += 'AND e.created_at <= ? ';
+      params.push(filters.fechaFin);
+    }
 
     const { limit, offset } = LimitOffset(
       paginationDto.size!,
       paginationDto.page!,
     );
 
+    params.push(limit, offset);
+
     try {
-      // Obtener los datos paginados
       const [rows] = await connection.query<RowDataPacket[]>(
         `WITH ultimo_estado AS (
             SELECT 
@@ -84,22 +182,68 @@ export class EnvioRepository {
             e.id, e.created_at, e.direccion, e.alto, e.ancho, 
             e.peso, e.largo, e.tipo_producto, 
             u.id AS usuario_id, u.name, u.email,
-            ue.ultimo_estado
+            ue.ultimo_estado,
+            r.id AS ruta_id, r.origen, r.destino, r.created_at AS ruta_creada,
+            r.estado AS ruta_estado, r.fecha_inicio, r.fecha_fin, r.active AS ruta_activa,
+            t.id AS transportista_id, t.nombre AS transportista_nombre, t.cedula AS transportista_cedula,
+            v.id AS vehiculo_id, v.volumen_maximo, v.peso_maximo, v.placa AS vehiculo_placa,
+            e.codigo
         FROM envios e
         INNER JOIN usuarios u ON e.usuario_id = u.id
         LEFT JOIN ultimo_estado ue ON ue.envio_id = e.id AND ue.rn = 1
-        WHERE e.active = 1 
-          AND u.active = 1
-      LIMIT ? OFFSET ?`,
-        [limit, offset],
+        LEFT JOIN rutas r ON e.ruta_id = r.id
+        LEFT JOIN transportistas t ON r.transportista_id = t.id
+        LEFT JOIN vehiculos v ON r.vehiculo_id = v.id
+        WHERE e.active = 1
+        AND (
+            CAST(e.id AS CHAR) LIKE ? OR
+            e.direccion LIKE ? OR
+            e.tipo_producto LIKE ? OR
+            u.name LIKE ? OR
+            u.email LIKE ? OR
+            r.origen LIKE ? OR
+            r.destino LIKE ? OR
+            t.nombre LIKE ? OR
+            t.cedula LIKE ? OR
+            v.placa LIKE ?
+        )
+        ${estadoFilterQuery}
+        LIMIT ? OFFSET ?`,
+        params,
       );
 
-      // Obtener el total de registros sin paginación
       const [[{ total }]] = await connection.query<RowDataPacket[]>(
-        `SELECT COUNT(*) as total 
-      FROM envios e 
-      INNER JOIN usuarios u ON e.usuario_id = u.id
-      WHERE e.active = 1 AND u.active = 1`,
+        `WITH ultimo_estado AS (
+            SELECT 
+                ee.envio_id, 
+                ee.estado_id, 
+                es.name AS ultimo_estado,
+                ROW_NUMBER() OVER (PARTITION BY ee.envio_id ORDER BY ee.created_at DESC) AS rn
+            FROM envios_estados ee
+            INNER JOIN estados es ON ee.estado_id = es.id
+        )
+        SELECT COUNT(*) as total
+        FROM envios e
+        INNER JOIN usuarios u ON e.usuario_id = u.id
+        LEFT JOIN ultimo_estado ue ON ue.envio_id = e.id AND ue.rn = 1
+        LEFT JOIN rutas r ON e.ruta_id = r.id
+        LEFT JOIN transportistas t ON r.transportista_id = t.id
+        LEFT JOIN vehiculos v ON r.vehiculo_id = v.id
+        WHERE e.active = 1
+        AND (
+            CAST(e.id AS CHAR) LIKE ? OR
+            e.direccion LIKE ? OR
+            e.tipo_producto LIKE ? OR
+            u.name LIKE ? OR
+            u.email LIKE ? OR
+            r.origen LIKE ? OR
+            r.destino LIKE ? OR
+            t.nombre LIKE ? OR
+            t.cedula LIKE ? OR
+            v.placa LIKE ?
+        )
+        ${estadoFilterQuery}`,
+        params,
       );
 
       const items = rows.map(this._mapEnvio);
@@ -111,7 +255,7 @@ export class EnvioRepository {
     }
   }
 
-  async createEnvio(envioDto: CreateEnvioDto): Promise<Envio> {
+  async createEnvio(envioDto: CreateEnvioDto, code: string): Promise<Envio> {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -119,10 +263,9 @@ export class EnvioRepository {
       const { direccion, alto, ancho, peso, largo, tipoProducto, usuarioId } =
         envioDto;
 
-      // Insertar en la tabla "envios"
       const [result] = await connection.query<ResultSetHeader>(
-        `INSERT INTO envios (direccion, alto, ancho, peso, largo, tipo_producto, usuario_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [direccion, alto, ancho, peso, largo, tipoProducto, usuarioId],
+        `INSERT INTO envios (direccion, alto, ancho, peso, largo, tipo_producto, usuario_id, codigo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [direccion, alto, ancho, peso, largo, tipoProducto, usuarioId, code],
       );
 
       if (!result.insertId) {
@@ -156,6 +299,32 @@ export class EnvioRepository {
       return envio;
     } catch (error) {
       await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  static async obtenerEnviosPorRuta(
+    rutaId: number,
+  ): Promise<
+    { peso: number; alto: number; ancho: number; largo: number; id: number }[]
+  > {
+    const connection = await pool.getConnection();
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT * FROM envios WHERE ruta_id = ? AND active = 1`,
+        [rutaId],
+      );
+
+      return rows.map((row) => ({
+        peso: Number(row.peso),
+        alto: Number(row.alto),
+        ancho: Number(row.ancho),
+        largo: Number(row.largo),
+        id: Number(row.id),
+      }));
+    } catch (error) {
       throw error;
     } finally {
       connection.release();

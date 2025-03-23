@@ -1,1 +1,2 @@
-export * from './result-pagination';
+export * from './result-pagination.interface';
+export * from './filters-search.interface';

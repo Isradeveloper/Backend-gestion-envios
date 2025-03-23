@@ -1,5 +1,6 @@
 import { pool } from '../../../config';
 import { CustomError } from '../../common/errors';
+import { BooleanToTinyInt } from '../../common/utils';
 import { CreateVehiculoDto } from '../dtos';
 import { Vehiculo } from '../entities/vehiculo.entity';
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
@@ -7,14 +8,11 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 export class VehiculoRepository {
   constructor() {}
 
-  findVehiculoByTerm = async (
-    term: string,
-    value: string,
-  ): Promise<Vehiculo | null> => {
+  static async findVehiculoByTerm(term: string, value: string) {
     const connection = await pool.getConnection();
     try {
       const [rows] = await connection.query<RowDataPacket[]>(
-        `SELECT * FROM vehiculos WHERE ${term} = ?`,
+        `SELECT * FROM vehiculos WHERE active = 1 AND ${term} = ?`,
         [value],
       );
 
@@ -29,7 +27,7 @@ export class VehiculoRepository {
     } finally {
       connection.release();
     }
-  };
+  }
 
   getAllVehiculos = async () => {
     const connection = await pool.getConnection();
@@ -61,7 +59,7 @@ export class VehiculoRepository {
         throw CustomError.badRequest('No se pudo insertar el vehiculo');
       }
 
-      const vehiculo = await this.findVehiculoByTerm(
+      const vehiculo = await VehiculoRepository.findVehiculoByTerm(
         'id',
         result.insertId.toString(),
       );
@@ -71,6 +69,28 @@ export class VehiculoRepository {
 
       await connection.commit();
       return vehiculo;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  };
+
+  static updateTransito = async (id: number, estado: boolean) => {
+    const connection = await pool.getConnection();
+    const estadoInt = BooleanToTinyInt(estado);
+    try {
+      await connection.beginTransaction();
+      const [result] = await connection.query<ResultSetHeader>(
+        'UPDATE vehiculos SET en_transito = ? WHERE id = ?',
+        [estadoInt, id],
+      );
+      if (result.affectedRows === 0) {
+        throw CustomError.badRequest('No se pudo actualizar el vehiculo');
+      }
+      await connection.commit();
+      return true;
     } catch (error) {
       await connection.rollback();
       throw error;

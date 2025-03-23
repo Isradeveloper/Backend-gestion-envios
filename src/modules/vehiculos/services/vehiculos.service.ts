@@ -11,7 +11,7 @@ export class VehiculoService {
   };
 
   createVehiculo = async (createVehiculoDto: CreateVehiculoDto) => {
-    const exists = await this.vehiculoRepository.findVehiculoByTerm(
+    const exists = await VehiculoRepository.findVehiculoByTerm(
       'placa',
       createVehiculoDto.placa,
     );
