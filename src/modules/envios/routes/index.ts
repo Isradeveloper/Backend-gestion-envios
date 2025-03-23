@@ -187,6 +187,13 @@ export class EnvioRoutes {
      *         schema:
      *           type: integer
      *           example: 1
+     *       - name: usuarioId
+     *         in: query
+     *         required: false
+     *         description: id del usuario
+     *         schema:
+     *           type: integer
+     *           example: 1
      *     responses:
      *       200:
      *         description: Lista de envios

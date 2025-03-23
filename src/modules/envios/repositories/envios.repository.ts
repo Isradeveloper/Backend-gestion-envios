@@ -183,6 +183,11 @@ export class EnvioRepository {
       params.push(filters.fechaFin);
     }
 
+    if (filters.usuarioId && filters.usuarioId !== 0) {
+      estadoFilterQuery += 'AND u.id = ? ';
+      params.push(filters.usuarioId);
+    }
+
     const { limit, offset } = LimitOffset(
       paginationDto.size!,
       paginationDto.page!,

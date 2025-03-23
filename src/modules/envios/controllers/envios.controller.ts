@@ -11,6 +11,7 @@ export interface Filters {
   fechaInicio: string;
   fechaFin: string;
   transportistaId: number;
+  usuarioId: number;
 }
 export class EnviosController {
   constructor(private envioService: EnvioService) {}
@@ -25,17 +26,21 @@ export class EnviosController {
         fechaInicio = '',
         fechaFin = '',
         transportistaId = 0,
+        usuarioId = 0,
       } = req.query;
+
       const paginationDto = await validateDto(PaginationDto, {
         size: +size,
         page: +page,
       });
+
       const filtersSearch: FiltersSearch<Filters> = {
         filters: {
           estado: estado.toString(),
           fechaInicio: fechaInicio.toString(),
           fechaFin: fechaFin.toString(),
           transportistaId: +transportistaId,
+          usuarioId: +usuarioId,
         },
         search: search.toString(),
       };
