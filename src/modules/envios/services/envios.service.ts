@@ -5,6 +5,7 @@ import { EnvioRepository } from '../repositories/envios.repository';
 import { FiltersSearch } from '../../common/interfaces';
 import { Filters } from '../controllers';
 import { createRandomUnicCode } from '../../common/utils';
+import { EstadoRepository } from '../../estados';
 
 export class EnvioService {
   constructor(private envioRepository: EnvioRepository) {}
@@ -22,7 +23,24 @@ export class EnvioService {
 
   createEnvio = async (envioDto: CreateEnvioDto) => {
     const code = createRandomUnicCode();
-    const envio = await this.envioRepository.createEnvio(envioDto, code);
+
+    const estado = await EstadoRepository.findEstadoByTerm('name', 'En espera');
+
+    if (!estado) throw CustomError.badRequest('Estado no encontrado');
+
+    const envio = await this.envioRepository.createEnvio(
+      envioDto,
+      code,
+      estado.id,
+    );
     return { message: 'Envio creado correctamente', data: envio };
+  };
+
+  getEstadosPorEnvio = async (code: string) => {
+    const estados = await EnvioRepository.getEstadosPorEnvio(code);
+
+    if (!estados) throw CustomError.notFound('Estados no encontrados');
+
+    return { message: 'Estado obtenido correctamente', data: estados };
   };
 }

@@ -2,6 +2,13 @@ import { User } from '../../auth';
 import { TinyIntToBoolean } from '../../common/utils';
 import { Ruta } from '../../rutas';
 
+export interface EstadosEnvio {
+  fecha: Date | null;
+  estado: string;
+  direccion: string;
+  id: number;
+}
+
 export class Envio {
   constructor(
     public readonly id: number,

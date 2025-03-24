@@ -1,5 +1,5 @@
 import { PaginationDto } from '../../common/dtos';
-import { CustomError } from '../../common/errors';
+import { CustomError, handleError } from '../../common/errors';
 import { EnvioRepository } from '../../envios';
 import { TransportistaRepository } from '../../transportistas';
 import { VehiculoRepository } from '../../vehiculos';
@@ -7,6 +7,8 @@ import { ChangeEstadoDto, CreateRutaDto } from '../dtos';
 import { RutaRepository } from '../repositories/rutas.repository';
 import { FiltersSearch } from '../../common/interfaces';
 import { Filters } from '../controllers';
+import { Server } from '../../../server';
+import { clearRedis, clearSpecificRedis } from '../../../config';
 
 export class RutaService {
   constructor(private rutaRepository: RutaRepository) {}
@@ -69,7 +71,7 @@ export class RutaService {
     let volumenAlcanzado = 0;
     let pesoAlcanzado = 0;
 
-    const enviosAsignados = await EnvioRepository.obtenerEnviosPorRuta(rutaId);
+    const enviosAsignados = await EnvioRepository.getEnviosPorRuta(rutaId);
 
     for (const { peso, largo, ancho, alto } of enviosAsignados) {
       volumenAlcanzado += largo * ancho * alto;
@@ -114,58 +116,130 @@ export class RutaService {
     }
 
     await this.rutaRepository.asociateManyEnvios(rutaId, enviosIds);
+
     return { message: 'Envíos asociados correctamente' };
   };
 
   changeEstado = async (changeEstadoDto: ChangeEstadoDto) => {
-    const ruta = await RutaRepository.findRutaByTerm(
-      'r.id',
-      changeEstadoDto.id.toString(),
-    );
+    const { id, estado } = changeEstadoDto;
+
+    const ruta = await RutaRepository.findRutaByTerm('r.id', id.toString());
     if (!ruta) {
       throw CustomError.badRequest(
         'No se encuentra una ruta con el id proporcionado',
       );
     }
 
-    if (ruta.estado === changeEstadoDto.estado) {
+    if (ruta.estado === estado) {
       throw CustomError.badRequest(
         'El estado de la ruta ya es el proporcionado',
       );
     }
 
-    if (
-      !ruta.fechaInicio &&
-      !ruta.fechaFin &&
-      changeEstadoDto.estado != 'En transito'
-    ) {
+    await this.validarCambioEstado(ruta, estado);
+
+    const vehiculo = await this.obtenerVehiculo(Number(ruta.vehiculo.id));
+    const conductor = await this.obtenerConductor(
+      Number(ruta.transportista.id),
+    );
+
+    this.validarDisponibilidad(estado, vehiculo, conductor);
+
+    await this.rutaRepository.changeEstado(
+      changeEstadoDto,
+      vehiculo.id,
+      conductor.id,
+    );
+
+    //** BUSCAR TODOS LOS CODIGOS RELACIONADOS A ESTA RUTA */
+
+    const enviosRelacionados = await RutaRepository.getEnviosAsociados(id);
+    const estados = await Promise.all(
+      enviosRelacionados.map((envio) =>
+        RutaRepository.getUltimoEstadoEnvio(envio.id),
+      ),
+    );
+
+    //** NOTIFICAR WEBSOCKET DEL ULTIMO ESTADO DE CADA UNO*/
+
+    for (const estado of estados) {
+      Server.emitSocketEvent(`envio-${estado?.codigo}`, estado);
+
+      await clearSpecificRedis(estado?.codigo);
+    }
+
+    return { message: 'Estado de la ruta cambiado correctamente' };
+  };
+
+  private validarCambioEstado = async (ruta: any, nuevoEstado: string) => {
+    const { fechaInicio, fechaFin } = ruta;
+
+    if (!fechaInicio && !fechaFin && nuevoEstado !== 'En transito') {
       throw CustomError.badRequest(
-        'Solamente se puede cambiar el estado de la ruta a "En transito" si no se ha iniciado o finalizado',
-      );
-    } else if (
-      ruta.fechaInicio &&
-      !ruta.fechaFin &&
-      changeEstadoDto.estado != 'Finalizada'
-    ) {
-      throw CustomError.badRequest(
-        'Solamente se puede cambiar el estado de la ruta a "Finalizado" si se ha iniciado',
+        'Solo se puede cambiar el estado a "En transito" si no se ha iniciado o finalizado',
       );
     }
 
-    if (changeEstadoDto.estado === 'En transito') {
-      const envios = await EnvioRepository.obtenerEnviosPorRuta(
-        Number(ruta.id),
+    if (fechaInicio && !fechaFin && nuevoEstado !== 'Finalizada') {
+      throw CustomError.badRequest(
+        'Solo se puede cambiar el estado a "Finalizada" si ya ha sido iniciada',
       );
-      if (envios.length === 0) {
+    }
+
+    if (nuevoEstado === 'En transito') {
+      await this.validarEnviosAsociados(ruta.id);
+    }
+  };
+
+  private async validarEnviosAsociados(rutaId: number) {
+    const envios = await EnvioRepository.getEnviosPorRuta(rutaId);
+    if (envios.length === 0) {
+      throw CustomError.badRequest(
+        'No se puede cambiar el estado a "En transito" sin envíos asociados',
+      );
+    }
+  }
+
+  private async obtenerVehiculo(vehiculoId: number) {
+    const vehiculo = await VehiculoRepository.findVehiculoByTerm(
+      'id',
+      vehiculoId.toString(),
+    );
+    if (!vehiculo) {
+      throw CustomError.badRequest(
+        `No se encuentra el vehículo con id ${vehiculoId}`,
+      );
+    }
+    return vehiculo;
+  }
+
+  private async obtenerConductor(conductorId: number) {
+    const conductor = await TransportistaRepository.findTransportistaByTerm(
+      'id',
+      conductorId.toString(),
+    );
+    if (!conductor) {
+      throw CustomError.badRequest(
+        `No se encuentra el conductor con id ${conductorId}`,
+      );
+    }
+    return conductor;
+  }
+
+  private validarDisponibilidad(estado: string, vehiculo: any, conductor: any) {
+    if (estado === 'En transito') {
+      if (vehiculo.enTransito) {
         throw CustomError.badRequest(
-          'No se puede cambiar el estado de la ruta a "En transito" si no tiene envios asociados',
+          'El vehículo ya está en tránsito en otra ruta',
+        );
+      }
+      if (conductor.enTransito) {
+        throw CustomError.badRequest(
+          'El conductor ya está en tránsito en otra ruta',
         );
       }
     }
-
-    await this.rutaRepository.changeEstado(changeEstadoDto);
-    return { message: 'Estado de la ruta cambiado correctamente' };
-  };
+  }
 
   getRutasPendientes = async () => {
     const rutas = await this.rutaRepository.getRutasPendientes();

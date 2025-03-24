@@ -15,6 +15,14 @@ async function connectRedis() {
 
 connectRedis();
 
+export const clearSpecificRedis = async (key: string): Promise<void> => {
+  try {
+    await redisClient.del(key);
+  } catch (error) {
+    console.error('❌ Error al limpiar Redis con clave:', key, error);
+  }
+};
+
 export const clearRedis = async (pattern: string): Promise<void> => {
   try {
     const keys = await redisClient.keys(`${pattern}:*`);

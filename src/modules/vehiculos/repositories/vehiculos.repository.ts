@@ -68,7 +68,7 @@ export class VehiculoRepository {
             placa LIKE ? OR
             peso_maximo LIKE ? OR
             volumen_maximo LIKE ?
-        ) LIMIT ? OFFSET ?`,
+        ) ORDER BY id DESC LIMIT ? OFFSET ?`,
         [...searchParams, limit, offset],
       );
 

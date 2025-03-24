@@ -11,7 +11,7 @@ import { FiltersSearch, ResultPagination } from '../../common/interfaces';
 import { LimitOffset } from '../../common/utils';
 import { Filters } from '../controllers';
 import { CreateEnvioDto } from '../dtos/create-envio.dto';
-import { Envio } from '../entities/envio.entity';
+import { Envio, EstadosEnvio } from '../entities/envio.entity';
 import { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 
 export class EnvioRepository {
@@ -109,6 +109,7 @@ export class EnvioRepository {
               e.id, e.created_at, e.direccion, e.alto, e.ancho, 
               e.peso, e.largo, e.tipo_producto, 
               u.id AS usuario_id, u.name, u.email,
+              e.codigo,
               ue.ultimo_estado,
               r.id AS ruta_id, r.origen, r.destino, r.created_at AS ruta_creada,
               r.estado AS ruta_estado, r.fecha_inicio, r.fecha_fin, r.active AS ruta_activa,
@@ -233,6 +234,7 @@ export class EnvioRepository {
             e.codigo LIKE ?
         )
         ${estadoFilterQuery}
+        ORDER BY e.id DESC
         LIMIT ? OFFSET ?`,
         params,
       );
@@ -282,7 +284,11 @@ export class EnvioRepository {
     }
   }
 
-  async createEnvio(envioDto: CreateEnvioDto, code: string): Promise<Envio> {
+  async createEnvio(
+    envioDto: CreateEnvioDto,
+    code: string,
+    estado: string,
+  ): Promise<Envio> {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -301,7 +307,7 @@ export class EnvioRepository {
 
       const [resultEstado] = await connection.query<ResultSetHeader>(
         `INSERT INTO envios_estados (envio_id, estado_id) VALUES (?, ?)`,
-        [result.insertId, 2],
+        [result.insertId, estado],
       );
 
       if (!resultEstado.insertId) {
@@ -332,7 +338,7 @@ export class EnvioRepository {
     }
   }
 
-  static async obtenerEnviosPorRuta(
+  static async getEnviosPorRuta(
     rutaId: number,
   ): Promise<
     { peso: number; alto: number; ancho: number; largo: number; id: number }[]
@@ -354,6 +360,56 @@ export class EnvioRepository {
 
       return envios;
     } catch (error) {
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  static async getEstadosPorEnvio(code: string) {
+    const cached = await getRedisCache<EstadosEnvio[]>(code);
+    if (cached) return cached;
+
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT
+            ee.created_at AS fecha,
+            envios.direccion,
+            e.name AS estado,
+            envios.id
+        FROM
+            envios_estados ee
+        INNER JOIN envios ON envios.id = ee.envio_id -- Verifica que esta columna exista y sea la correcta
+        INNER JOIN estados e ON ee.estado_id = e.id
+        WHERE
+            envios.codigo = ?
+        ORDER BY
+            ee.created_at ASC;`,
+        code,
+      );
+
+      if (rows.length === 0) {
+        throw CustomError.notFound('No se encontraron estados para el envío');
+      }
+
+      await connection.commit();
+
+      const estados = rows.map((row) => ({
+        fecha: row.fecha,
+        estado: row.estado,
+        direccion: row.direccion,
+        id: row.id,
+      }));
+
+      await setRedisCache(code, estados);
+
+      return estados;
+    } catch (error) {
+      await connection.rollback();
       throw error;
     } finally {
       connection.release();

@@ -229,6 +229,47 @@ export class EnvioRoutes {
      */
     router.post('/', envioController.createEnvio);
 
+    /**
+     * @swagger
+     * /api/envios/{code}/estados:
+     *   get:
+     *     tags:
+     *       - Envios
+     *     summary: Obtener los estados de un envio
+     *     parameters:
+     *       - name: code
+     *         in: path
+     *         required: true
+     *         description: Código del envío
+     *         schema:
+     *           type: string
+     *           example: "ABC123"
+     *     responses:
+     *       200:
+     *         description: Lista de estados
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: array
+     *               items:
+     *                 type: object
+     *                 properties:
+     *                   id:
+     *                     type: integer
+     *                     example: 1
+     *                   estado:
+     *                     type: string
+     *                     example: "En transito"
+     *                   fecha:
+     *                     type: string
+     *                     example: "2023-01-01T00:00:00.000Z"
+     *                   direccion:
+     *                     type: string
+     *                     example: "123 Main St"
+     *
+     */
+    router.get('/:code/estados', envioController.getEstadosPorEnvio);
+
     return router;
   }
 }

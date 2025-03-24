@@ -181,6 +181,8 @@ export class RutaRepository {
             v.placa LIKE ? 
           )
           ${estadoFilterQuery}
+        ORDER BY
+          r.created_at DESC
         LIMIT ? OFFSET ?`,
         params,
       );
@@ -292,7 +294,11 @@ export class RutaRepository {
     }
   };
 
-  changeEstado = async (changeEstadoDto: ChangeEstadoDto) => {
+  changeEstado = async (
+    changeEstadoDto: ChangeEstadoDto,
+    vehiculoId: string,
+    conductorId: string,
+  ) => {
     const connection = await pool.getConnection();
 
     const estados = {
@@ -300,6 +306,8 @@ export class RutaRepository {
       'En transito': 'En transito',
       Finalizada: 'Entregado',
     };
+
+    const enTransito = changeEstadoDto.estado === 'En transito' ? 1 : 0;
 
     try {
       await connection.beginTransaction();
@@ -331,9 +339,29 @@ export class RutaRepository {
         throw CustomError.badRequest('No se pudo cambiar el estado de la ruta');
       }
 
-      const envios = await EnvioRepository.obtenerEnviosPorRuta(
-        changeEstadoDto.id,
+      const [resultVehiculo] = await connection.query<ResultSetHeader>(
+        'UPDATE vehiculos SET en_transito = ? WHERE id = ?',
+        [enTransito, vehiculoId],
       );
+
+      if (resultVehiculo.affectedRows === 0) {
+        throw CustomError.badRequest(
+          `No se pudo cambiar el estado del vehículo con el id ${vehiculoId}`,
+        );
+      }
+
+      const [resultConductor] = await connection.query<ResultSetHeader>(
+        'UPDATE transportistas SET en_transito = ? WHERE id = ?',
+        [enTransito, conductorId],
+      );
+
+      if (resultConductor.affectedRows === 0) {
+        throw CustomError.badRequest(
+          `No se pudo cambiar el estado del conductor con el id ${conductorId}`,
+        );
+      }
+
+      const envios = await EnvioRepository.getEnviosPorRuta(changeEstadoDto.id);
 
       for (const envio of envios) {
         const [rows] = await connection.query<RowDataPacket[]>(
@@ -365,6 +393,8 @@ export class RutaRepository {
 
       await clearRedis('rutas');
       await clearRedis('envios');
+      await clearRedis('vehiculos');
+      await clearRedis('transportistas');
 
       return true;
     } catch (error) {
@@ -372,6 +402,30 @@ export class RutaRepository {
       throw error;
     } finally {
       connection.release();
+    }
+  };
+
+  static getEnviosAsociados = async (rutaId: number) => {
+    const connection = await pool.getConnection();
+
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT
+          e.id,
+          e.codigo
+        FROM
+          envios e
+        WHERE
+          e.active = 1 AND
+          e.ruta_id = ?`,
+        [rutaId],
+      );
+
+      return rows;
+    } catch (error) {
+      throw error;
+    } finally {
+      connection.release;
     }
   };
 
@@ -398,6 +452,43 @@ export class RutaRepository {
 
       await setRedisCache(cacheKey, rows);
       return rows;
+    } catch (error) {
+      throw error;
+    } finally {
+      connection.release();
+    }
+  };
+
+  static getUltimoEstadoEnvio = async (envioId: number) => {
+    const connection = await pool.getConnection();
+
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT
+          ee.created_at AS fecha,
+          envios.direccion,
+          e.name AS estado,
+          envios.codigo,
+          envios.id
+        FROM
+          envios_estados ee
+        INNER JOIN envios ON
+          envios.id = ee.envio_id
+        INNER JOIN estados e ON
+          ee.estado_id = e.id
+        WHERE
+          envios.id = ?
+        ORDER BY
+          ee.created_at DESC
+        LIMIT 1;`,
+        [envioId],
+      );
+
+      if (rows.length === 0) {
+        return null;
+      }
+
+      return rows[0];
     } catch (error) {
       throw error;
     } finally {

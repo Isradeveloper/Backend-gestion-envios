@@ -3,7 +3,7 @@ import { handleError } from '../../common/errors';
 import { EnvioService } from '../services/envios.service';
 import { validateDto } from '../../common/utils';
 import { PaginationDto } from '../../common/dtos';
-import { CreateEnvioDto } from '../dtos';
+import { CreateEnvioDto, GetEstadosDto } from '../dtos';
 import { FiltersSearch } from '../../common/interfaces';
 
 export interface Filters {
@@ -59,6 +59,18 @@ export class EnviosController {
       const createEnvioDto = await validateDto(CreateEnvioDto, req.body);
       const { message, data } = await this.envioService.createEnvio(
         createEnvioDto,
+      );
+      res.json({ message, data });
+    } catch (error) {
+      handleError(error, res);
+    }
+  };
+
+  getEstadosPorEnvio = async (req: Request, res: Response) => {
+    try {
+      const { code } = await validateDto(GetEstadosDto, req.params);
+      const { message, data } = await this.envioService.getEstadosPorEnvio(
+        code,
       );
       res.json({ message, data });
     } catch (error) {

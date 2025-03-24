@@ -12,7 +12,7 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 export class EstadoRepository {
   constructor() {}
 
-  findEstadoByTerm = async (
+  static findEstadoByTerm = async (
     term: string,
     value: string,
   ): Promise<Estado | null> => {
@@ -74,7 +74,7 @@ export class EstadoRepository {
         throw CustomError.badRequest('No se pudo insertar el estado');
       }
 
-      const estado = await this.findEstadoByTerm(
+      const estado = EstadoRepository.findEstadoByTerm(
         'id',
         result.insertId.toString(),
       );

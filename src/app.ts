@@ -1,4 +1,4 @@
-import { envs } from './config';
+import { clearAllRedis, envs } from './config';
 import { AppRoutes } from './routes';
 import { Server } from './server';
 
@@ -13,4 +13,5 @@ async function main() {
   });
 
   await server.start();
+  await clearAllRedis();
 }

@@ -11,7 +11,7 @@ export class EstadoService {
   };
 
   createEstado = async (createEstadoDto: CreateEstadoDto) => {
-    const exists = await this.estadoRepository.findEstadoByTerm(
+    const exists = await EstadoRepository.findEstadoByTerm(
       'name',
       createEstadoDto.name,
     );

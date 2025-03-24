@@ -98,6 +98,7 @@ export class TransportistaRepository {
             nombre LIKE ? OR
             cedula LIKE ?
         )
+        ORDER BY id DESC
         LIMIT ? OFFSET ?
         `,
         [...searchParams, limit, offset],
