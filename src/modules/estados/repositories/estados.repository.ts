@@ -1,4 +1,9 @@
-import { pool } from '../../../config';
+import {
+  clearRedis,
+  getRedisCache,
+  pool,
+  setRedisCache,
+} from '../../../config';
 import { CustomError } from '../../common/errors';
 import { CreateEstadoDto } from '../dtos';
 import { Estado } from '../entities/estado.entity';
@@ -13,6 +18,9 @@ export class EstadoRepository {
   ): Promise<Estado | null> => {
     const connection = await pool.getConnection();
     try {
+      const reply = await getRedisCache<Estado>(`estados:${term}:${value}`);
+      if (reply) return reply;
+
       const [rows] = await connection.query<RowDataPacket[]>(
         `SELECT * FROM estados WHERE ${term} = ?`,
         [value],
@@ -23,7 +31,9 @@ export class EstadoRepository {
         return null;
       }
 
-      return Estado.fromRow(rows[0]);
+      const estado = Estado.fromRow(rows[0]);
+      await setRedisCache(`estados:${term}:${value}`, estado);
+      return estado;
     } catch (error) {
       throw error;
     } finally {
@@ -32,12 +42,17 @@ export class EstadoRepository {
   };
 
   getAllEstados = async () => {
+    const reply = await getRedisCache<Estado[]>('estados');
+    if (reply) return reply;
+
     const connection = await pool.getConnection();
     try {
       const [rows] = await connection.query<RowDataPacket[]>(
         'SELECT * FROM estados WHERE active = 1',
       );
-      return rows.map((row) => Estado.fromRow(row));
+      const estados = rows.map((row) => Estado.fromRow(row));
+      await setRedisCache('estados', estados);
+      return estados;
     } catch (error) {
       throw error;
     } finally {
@@ -67,6 +82,7 @@ export class EstadoRepository {
         throw CustomError.badRequest('No se pudo insertar el estado');
 
       await connection.commit();
+      await clearRedis('estados');
       return estado;
     } catch (error) {
       await connection.rollback();

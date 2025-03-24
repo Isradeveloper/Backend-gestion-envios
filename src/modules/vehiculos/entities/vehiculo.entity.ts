@@ -7,8 +7,8 @@ export class Vehiculo {
     public readonly createdAt: Date,
     public readonly active: boolean,
     public readonly placa: string,
-    public readonly peso_maximo: number,
-    public readonly volumen_maximo: number,
+    public readonly pesoMaximo: number,
+    public readonly volumenMaximo: number,
     public readonly enTransito: boolean,
   ) {}
 

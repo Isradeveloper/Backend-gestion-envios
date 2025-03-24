@@ -1,5 +1,6 @@
 import express, { Router } from 'express';
 import { swaggerMiddleware } from './config';
+import cors from 'cors';
 
 interface Options {
   port: number;
@@ -25,6 +26,7 @@ export class Server {
     swaggerMiddleware(this.app);
     this.app.use(express.json()); // raw
     this.app.use(express.urlencoded({ extended: true })); // x-www-form-urlencoded
+    this.app.use(cors());
 
     //* Routes
     this.app.use(this.routes);

@@ -33,7 +33,7 @@ export class Envio {
       row.ancho,
       row.largo,
       row.peso,
-      row.tipoProducto,
+      row.tipo_producto,
       row.ultimoEstado,
       row.ruta,
       row.codigo,

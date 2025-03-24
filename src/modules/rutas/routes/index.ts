@@ -91,20 +91,62 @@ export class RutaRoutes {
      *       - Rutas
      *     summary: Get all rutas
      *     parameters:
-     *       - name: page
-     *         in: query
+     *       - in: query
+     *         name: page
      *         description: Page number
      *         required: false
      *         schema:
      *           type: integer
      *           example: 1
-     *       - name: limit
-     *         in: query
+     *       - in: query
+     *         name: size
      *         description: Number of items per page
      *         required: false
      *         schema:
      *           type: integer
      *           example: 10
+     *       - in: query
+     *         name: estado
+     *         description: estado de la ruta
+     *         required: false
+     *         schema:
+     *           type: string
+     *           example: "En espera"
+     *       - in: query
+     *         name: search
+     *         description: búsqueda
+     *         required: false
+     *         schema:
+     *           type: string
+     *           example: "ABC"
+     *       - in: query
+     *         name: fechaInicio
+     *         description: fecha de inicio
+     *         required: false
+     *         schema:
+     *           type: string
+     *           example: "2023-01-01"
+     *       - in: query
+     *         name: fechaFin
+     *         description: fecha de fin
+     *         required: false
+     *         schema:
+     *           type: string
+     *           example: "2023-01-31"
+     *       - in: query
+     *         name: transportistaId
+     *         description: id del transportista
+     *         required: false
+     *         schema:
+     *           type: integer
+     *           example: 1
+     *       - in: query
+     *         name: vehiculoId
+     *         description: id del vehiculo
+     *         required: false
+     *         schema:
+     *           type: integer
+     *           example: 1
      *     responses:
      *       200:
      *         description: A list of rutas
@@ -211,6 +253,35 @@ export class RutaRoutes {
      *                   example: Estado de la ruta cambiado correctamente
      */
     router.post('/change-estado', rutaController.changeEstado);
+
+    /**
+     * @swagger
+     * /api/rutas/pendientes:
+     *   get:
+     *     tags:
+     *       - Rutas
+     *     summary: Get all rutas pendientes
+     *     responses:
+     *       200:
+     *         description: A list of rutas pendientes
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: array
+     *               items:
+     *                 type: object
+     *                 properties:
+     *                   id:
+     *                     type: integer
+     *                     example: 1
+     *                   origen:
+     *                     type: string
+     *                     example: "Origen"
+     *                   destino:
+     *                     type: string
+     *                     example: "Destino"
+     */
+    router.get('/pendientes', rutaController.getRutasPendientes);
 
     return router;
   }

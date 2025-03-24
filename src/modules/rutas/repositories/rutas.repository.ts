@@ -1,10 +1,15 @@
-import { pool } from '../../../config';
+import {
+  clearRedis,
+  getRedisCache,
+  pool,
+  setRedisCache,
+} from '../../../config';
 import { PaginationDto } from '../../common/dtos';
 import { CustomError } from '../../common/errors';
-import { ResultPagination } from '../../common/interfaces';
+import { FiltersSearch, ResultPagination } from '../../common/interfaces';
 import { convertDateToMySQL, LimitOffset } from '../../common/utils';
 import { EnvioRepository } from '../../envios';
-import { VehiculoRepository } from '../../vehiculos';
+import { Filters } from '../controllers';
 import { ChangeEstadoDto, CreateRutaDto } from '../dtos';
 import { Ruta } from '../entities/ruta.entity';
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
@@ -26,7 +31,12 @@ export class RutaRepository {
     return Ruta.fromObject({
       ...rest,
       transportista: { id: transportista_id, nombre, cedula },
-      vehiculo: { id: vehiculo_id, placa, peso_maximo, volumen_maximo },
+      vehiculo: {
+        id: vehiculo_id,
+        placa,
+        pesoMaximo: peso_maximo,
+        volumenMaximo: volumen_maximo,
+      },
     });
   }
 
@@ -36,6 +46,7 @@ export class RutaRepository {
     }
 
     const connection = await pool.getConnection();
+
     try {
       const [rows] = await connection.query<RowDataPacket[]>(
         `SELECT
@@ -71,7 +82,8 @@ export class RutaRepository {
         return null;
       }
 
-      return new RutaRepository()._mapRuta(rows[0]);
+      const ruta = new RutaRepository()._mapRuta(rows[0]);
+      return ruta;
     } catch (error) {
       throw error;
     } finally {
@@ -81,10 +93,60 @@ export class RutaRepository {
 
   getAllRutas = async (
     pagination: PaginationDto,
+    filtersSearch: FiltersSearch<Filters>,
   ): Promise<ResultPagination<Ruta>> => {
     const connection = await pool.getConnection();
+
+    const { filters, search } = filtersSearch;
+    const searchValue = `%${search}%`;
+    const searchParams = Array(6).fill(searchValue);
+
+    let estadoFilterQuery = '';
+    const params = [...searchParams];
+
+    if (filters.estado) {
+      estadoFilterQuery += `AND r.estado = ?`;
+      params.push(filters.estado);
+    }
+
+    if (filters.transportistaId) {
+      estadoFilterQuery += ` AND t.id = ?`;
+      params.push(filters.transportistaId);
+    }
+
+    if (filters.vehiculoId) {
+      estadoFilterQuery += ` AND v.id = ?`;
+      params.push(filters.vehiculoId);
+    }
+    if (filters.fechaInicio) {
+      estadoFilterQuery += ` AND r.fecha_inicio >= ? AND r.fecha_inicio < ?`;
+      params.push(
+        filters.fechaInicio + ' 00:00:00',
+        filters.fechaInicio + ' 23:59:59',
+      );
+    }
+
+    if (filters.fechaFin) {
+      estadoFilterQuery += ` AND r.fecha_fin >= ? AND r.fecha_fin < ?`;
+      params.push(
+        filters.fechaFin + ' 00:00:00',
+        filters.fechaFin + ' 23:59:59',
+      );
+    }
+
     try {
       const { limit, offset } = LimitOffset(pagination.size, pagination.page);
+
+      params.push(limit, offset);
+
+      const cacheKey = `rutas:${search}:${JSON.stringify(filters)}:${
+        pagination.page
+      }:${pagination.size}`;
+
+      const cached = await getRedisCache<ResultPagination<Ruta>>(cacheKey);
+
+      if (cached) return cached;
+
       const [rows] = await connection.query<RowDataPacket[]>(
         `SELECT
           r.id,
@@ -110,15 +172,49 @@ export class RutaRepository {
           r.vehiculo_id = v.id
         WHERE
           r.active = 1
+          AND (
+            CAST(r.id AS CHAR) LIKE ? OR
+            r.origen LIKE ? OR
+            r.destino LIKE ? OR
+            t.nombre LIKE ? OR
+            t.cedula LIKE ? OR
+            v.placa LIKE ? 
+          )
+          ${estadoFilterQuery}
         LIMIT ? OFFSET ?`,
-        [limit, offset],
+        params,
       );
 
       const [[{ total }]] = await connection.query<RowDataPacket[]>(
-        `SELECT COUNT(*) as total FROM rutas r WHERE r.active = 1`,
+        `SELECT COUNT(*) as total
+          FROM
+            rutas r
+          INNER JOIN transportistas t ON
+            r.transportista_id = t.id
+          INNER JOIN vehiculos v ON
+            r.vehiculo_id = v.id
+          WHERE
+            r.active = 1
+          AND (
+            CAST(r.id AS CHAR) LIKE ? OR
+            r.origen LIKE ? OR
+            r.destino LIKE ? OR
+            t.nombre LIKE ? OR
+            t.cedula LIKE ? OR
+            v.placa LIKE ? 
+          )
+          ${estadoFilterQuery}`,
+        params,
       );
 
-      return { items: rows.map((row) => this._mapRuta(row)), total };
+      const items = rows.map(this._mapRuta);
+
+      await setRedisCache(cacheKey, {
+        items,
+        total,
+      });
+
+      return { items, total };
     } catch (error) {
       throw error;
     } finally {
@@ -153,6 +249,8 @@ export class RutaRepository {
         throw CustomError.badRequest('No se pudo insertar la ruta');
       }
 
+      await clearRedis('rutas');
+
       return ruta;
     } catch (error) {
       await connection.rollback();
@@ -182,6 +280,9 @@ export class RutaRepository {
 
       await connection.commit();
 
+      await clearRedis('rutas');
+      await clearRedis('envios');
+
       return true;
     } catch (error) {
       await connection.rollback();
@@ -197,6 +298,7 @@ export class RutaRepository {
     const estados = {
       Pendiente: 'En Espera',
       'En transito': 'En transito',
+      Finalizada: 'Entregado',
     };
 
     try {
@@ -213,7 +315,7 @@ export class RutaRepository {
         params.push(fechaLocal);
       }
 
-      if (changeEstadoDto.estado == 'Finalizado') {
+      if (changeEstadoDto.estado == 'Finalizada') {
         aditionals += ', fecha_fin = ?';
         params.push(fechaLocal);
       }
@@ -261,9 +363,42 @@ export class RutaRepository {
 
       await connection.commit();
 
+      await clearRedis('rutas');
+      await clearRedis('envios');
+
       return true;
     } catch (error) {
       await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  };
+
+  getRutasPendientes = async () => {
+    const cacheKey = 'rutas:pendientes';
+
+    const cached = await getRedisCache(cacheKey);
+    if (cached) return cached;
+
+    const connection = await pool.getConnection();
+
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT
+          r.id,
+          r.origen,
+          r.destino
+        FROM
+          rutas r
+        WHERE
+          r.active = 1
+          AND r.estado = 'Pendiente'`,
+      );
+
+      await setRedisCache(cacheKey, rows);
+      return rows;
+    } catch (error) {
       throw error;
     } finally {
       connection.release();

@@ -5,12 +5,20 @@ import { TransportistaRepository } from '../../transportistas';
 import { VehiculoRepository } from '../../vehiculos';
 import { ChangeEstadoDto, CreateRutaDto } from '../dtos';
 import { RutaRepository } from '../repositories/rutas.repository';
+import { FiltersSearch } from '../../common/interfaces';
+import { Filters } from '../controllers';
 
 export class RutaService {
   constructor(private rutaRepository: RutaRepository) {}
 
-  getRutas = async (paginationDto: PaginationDto) => {
-    const rutas = await this.rutaRepository.getAllRutas(paginationDto);
+  getRutas = async (
+    paginationDto: PaginationDto,
+    filtersSearch: FiltersSearch<Filters>,
+  ) => {
+    const rutas = await this.rutaRepository.getAllRutas(
+      paginationDto,
+      filtersSearch,
+    );
     return { message: 'Rutas obtenidas correctamente', data: rutas };
   };
 
@@ -55,7 +63,8 @@ export class RutaService {
       );
     }
 
-    const { volumen_maximo, peso_maximo } = ruta.vehiculo;
+    const { volumenMaximo: volumen_maximo, pesoMaximo: peso_maximo } =
+      ruta.vehiculo;
 
     let volumenAlcanzado = 0;
     let pesoAlcanzado = 0;
@@ -136,14 +145,30 @@ export class RutaService {
     } else if (
       ruta.fechaInicio &&
       !ruta.fechaFin &&
-      changeEstadoDto.estado != 'Finalizado'
+      changeEstadoDto.estado != 'Finalizada'
     ) {
       throw CustomError.badRequest(
         'Solamente se puede cambiar el estado de la ruta a "Finalizado" si se ha iniciado',
       );
     }
 
+    if (changeEstadoDto.estado === 'En transito') {
+      const envios = await EnvioRepository.obtenerEnviosPorRuta(
+        Number(ruta.id),
+      );
+      if (envios.length === 0) {
+        throw CustomError.badRequest(
+          'No se puede cambiar el estado de la ruta a "En transito" si no tiene envios asociados',
+        );
+      }
+    }
+
     await this.rutaRepository.changeEstado(changeEstadoDto);
     return { message: 'Estado de la ruta cambiado correctamente' };
+  };
+
+  getRutasPendientes = async () => {
+    const rutas = await this.rutaRepository.getRutasPendientes();
+    return { message: 'Rutas pendientes obtenidas correctamente', data: rutas };
   };
 }

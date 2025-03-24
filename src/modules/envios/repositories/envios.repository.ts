@@ -59,8 +59,8 @@ export class EnvioRepository {
             vehiculo: {
               id: vehiculo_id,
               placa: vehiculo_placa,
-              peso_maximo,
-              volumen_maximo,
+              pesoMaximo: peso_maximo,
+              volumenMaximo: volumen_maximo,
             },
           }
         : null,
@@ -71,12 +71,6 @@ export class EnvioRepository {
     term: string,
     value: string,
   ): Promise<RowDataPacket | null> {
-    const reply = await getRedisCache<RowDataPacket>(
-      `envios:simple:${term}:${value}`,
-    );
-
-    if (reply) return reply;
-
     const connection = await pool.getConnection();
     try {
       const [rows] = await connection.query<RowDataPacket[]>(
@@ -86,7 +80,6 @@ export class EnvioRepository {
       if (rows.length === 0) {
         return null;
       }
-      await setRedisCache(`envios:simple:${term}:${value}`, rows[0]);
       return rows[0];
     } catch (error) {
       throw error;
@@ -102,12 +95,6 @@ export class EnvioRepository {
 
     const connection = await pool.getConnection();
     try {
-      const reply = await getRedisCache<RowDataPacket>(
-        `envios:${term}:${value}`,
-      );
-
-      if (reply) return this._mapEnvio(reply);
-
       const [rows] = await connection.query<RowDataPacket[]>(
         `WITH ultimo_estado AS (
               SELECT 
@@ -141,7 +128,6 @@ export class EnvioRepository {
       if (rows.length === 0) {
         return null;
       }
-      await setRedisCache(`envios:${term}:${value}`, rows[0]);
       return this._mapEnvio(rows[0]);
     } catch (error) {
       throw error;
@@ -158,7 +144,7 @@ export class EnvioRepository {
 
     const { filters, search } = filterSearch;
     const searchValue = `%${search}%`;
-    const searchParams = Array(10).fill(searchValue);
+    const searchParams = Array(11).fill(searchValue);
 
     let estadoFilterQuery = '';
     const params = [...searchParams];
@@ -243,7 +229,8 @@ export class EnvioRepository {
             r.destino LIKE ? OR
             t.nombre LIKE ? OR
             t.cedula LIKE ? OR
-            v.placa LIKE ?
+            v.placa LIKE ? OR
+            e.codigo LIKE ?
         )
         ${estadoFilterQuery}
         LIMIT ? OFFSET ?`,
@@ -278,7 +265,8 @@ export class EnvioRepository {
             r.destino LIKE ? OR
             t.nombre LIKE ? OR
             t.cedula LIKE ? OR
-            v.placa LIKE ?
+            v.placa LIKE ? OR
+            e.codigo LIKE ?
         )
         ${estadoFilterQuery}`,
         params,
@@ -349,14 +337,6 @@ export class EnvioRepository {
   ): Promise<
     { peso: number; alto: number; ancho: number; largo: number; id: number }[]
   > {
-    const cached = await getRedisCache<
-      { peso: number; alto: number; ancho: number; largo: number; id: number }[]
-    >(`envios:ruta:${rutaId}`);
-
-    if (cached) {
-      return cached;
-    }
-
     const connection = await pool.getConnection();
     try {
       const [rows] = await connection.query<RowDataPacket[]>(
@@ -371,8 +351,6 @@ export class EnvioRepository {
         largo: Number(row.largo),
         id: Number(row.id),
       }));
-
-      await setRedisCache(`envios:ruta:${rutaId}`, envios);
 
       return envios;
     } catch (error) {

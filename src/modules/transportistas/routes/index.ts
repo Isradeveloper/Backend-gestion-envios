@@ -58,6 +58,28 @@ export class TransportistaRoutes {
      *     tags:
      *       - Transportistas
      *     summary: Get all transportistas
+     *     parameters:
+     *       - name: size
+     *         in: query
+     *         required: false
+     *         description: Cantidad de items por página
+     *         schema:
+     *           type: integer
+     *           example: 10
+     *       - name: page
+     *         in: query
+     *         required: false
+     *         description: Número de página
+     *         schema:
+     *           type: integer
+     *           example: 1
+     *       - name: search
+     *         in: query
+     *         required: false
+     *         description: búsqueda
+     *         schema:
+     *           type: string
+     *           example: "1007118"
      *     responses:
      *       200:
      *         description: A list of transportistas
@@ -92,6 +114,35 @@ export class TransportistaRoutes {
      *               $ref: '#/components/schemas/Transportista'
      */
     router.post('/', transportistaController.createTransportista);
+
+    /**
+     * @swagger
+     * /api/transportistas/maestro:
+     *   get:
+     *     tags:
+     *       - Transportistas
+     *     summary: Get maestro transportistas
+     *     responses:
+     *       200:
+     *         description: A list of transportistas
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: array
+     *               items:
+     *                 type: object
+     *                 properties:
+     *                   id:
+     *                     type: integer
+     *                     example: 1
+     *                   cedula:
+     *                     type: string
+     *                     example: "123456789"
+     *                   nombre:
+     *                     type: string
+     *                     example: "John Doe"
+     */
+    router.get('/maestro', transportistaController.getMaestro);
     return router;
   }
 }
