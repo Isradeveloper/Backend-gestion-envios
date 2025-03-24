@@ -79,24 +79,26 @@ export class AuthRoutes {
 
     /**
      * @swagger
-     * /api/auth/users:
-     *   get:
-     *     security:
-     *       - BearerAuth: []
+     * /api/auth/refresh-token:
+     *   post:
      *     tags:
      *       - Auth
-     *     summary: Get users
+     *     summary: Refrescar token
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             properties:
+     *               refreshToken:
+     *                 type: string
+     *                 example: "eyJhbGciOi"
      *     responses:
      *       200:
-     *         description: A list of users
-     *         content:
-     *           application/json:
-     *             schema:
-     *               type: array
-     *               items:
-     *                 $ref: '#/components/schemas/RegisterUser'
+     *         description: Token refrescado exitosamente
      */
-    router.get('/users', [AuthMiddleware.validateJWT], authController.getUsers);
+    router.post('/refresh-token', authController.refreshToken);
 
     return router;
   }

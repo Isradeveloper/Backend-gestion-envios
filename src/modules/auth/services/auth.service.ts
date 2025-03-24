@@ -56,6 +56,9 @@ export class AuthService {
         'El email o la contraseña no son correctos',
       );
 
+    if (!user.active)
+      throw CustomError.unauthorized('El usuario no esta activo');
+
     const { password, ...rest } = user;
 
     const token = await JwtAdapter.generateToken({
@@ -63,6 +66,40 @@ export class AuthService {
       email: user.email,
     });
 
-    return { message: 'Inicio de sesión exitoso', data: { user: rest, token } };
+    const refreshToken = await JwtAdapter.generateRefreshToken({
+      id: user.id,
+      email: user.email,
+    });
+
+    return {
+      message: 'Inicio de sesión exitoso',
+      data: { user: rest, token, refreshToken },
+    };
+  };
+
+  refreshToken = async (refreshToken: string) => {
+    const payload = await JwtAdapter.validateRefreshToken<{
+      id: number;
+      email: string;
+    }>(refreshToken);
+
+    if (!payload) throw CustomError.unauthorized('Token invalido');
+
+    const user = await this.usersRepository.findUserByTerm(
+      'id',
+      payload.id.toString(),
+    );
+
+    if (!user) throw CustomError.unauthorized('Token invalido');
+
+    if (!user.active)
+      throw CustomError.unauthorized('El usuario no esta activo');
+
+    const token = await JwtAdapter.generateToken({
+      id: payload.id,
+      email: payload.email,
+    });
+
+    return { message: 'Token refrescado', token };
   };
 }

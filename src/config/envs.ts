@@ -9,6 +9,7 @@ export const envs = {
   DB_PASSWORD: get('DB_PASSWORD').required().asString(),
   DB_DATABASE: get('DB_DATABASE').required().asString(),
   DB_PORT: get('DB_PORT').default(3306).asPortNumber(),
-  JWT_SEED: get('JWT_SEED').required().asString(),
   DB_URL: get('DB_URL').required().asString(),
+  JWT_ACCESS_SECRET: get('JWT_ACCESS_SECRET').required().asString(),
+  JWT_REFRESH_SECRET: get('JWT_REFRESH_SECRET').required().asString(),
 };

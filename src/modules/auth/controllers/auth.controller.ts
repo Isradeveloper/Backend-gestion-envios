@@ -35,4 +35,14 @@ export class AuthController {
       handleError(error, res);
     }
   };
+
+  refreshToken = async (req: Request, res: Response) => {
+    try {
+      const { refreshToken } = req.body;
+      const result = await this.authService.refreshToken(refreshToken);
+      res.json(result);
+    } catch (error) {
+      handleError(error, res);
+    }
+  };
 }

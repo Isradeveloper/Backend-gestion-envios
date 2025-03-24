@@ -13,7 +13,7 @@ export class AppRoutes {
 
     router.use('/api/auth', AuthRoutes.routes);
     router.use('/api/estados', EstadoRoutes.routes);
-    router.use('/api/envios', EnvioRoutes.routes);
+    router.use('/api/envios', AuthMiddleware.validateJWT, EnvioRoutes.routes);
     router.use('/api/vehiculos', VehiculoRoutes.routes);
     router.use('/api/transportistas', TransportistaRoutes.routes);
     router.use('/api/rutas', RutaRoutes.routes);
