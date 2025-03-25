@@ -1,4 +1,4 @@
-version: "3"
+version: '3'
 
 services:
   backend-gestion-envios:
@@ -9,7 +9,7 @@ services:
     container_name: backend-gestion-envios
     restart: always
     ports:
-      - "${PORT}:${PORT}"
+      - '${PORT}:${PORT}'
     env_file:
       - .env
     depends_on:

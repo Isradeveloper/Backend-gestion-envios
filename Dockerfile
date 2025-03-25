@@ -1,5 +1,5 @@
 # Etapa de instalación de dependencias (solo cuando sea necesario)
-FROM node:20-alpine AS deps
+FROM node:22.14-alpine AS deps
 
 WORKDIR /app
 
@@ -8,7 +8,7 @@ COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile --production
 
 # Etapa de construcción
-FROM node:20-alpine AS builder
+FROM node:22.14-alpine AS builder
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ COPY . .
 RUN yarn build
 
 # Etapa de producción
-FROM node:20-alpine AS runner
+FROM node:22.14-alpine AS runner
 
 WORKDIR /app
 
