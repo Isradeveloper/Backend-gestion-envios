@@ -13,5 +13,4 @@ async function main() {
   });
 
   await server.start();
-  await clearAllRedis();
 }
