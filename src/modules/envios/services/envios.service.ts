@@ -7,9 +7,13 @@ import { Filters } from '../controllers';
 import { createRandomUnicCode } from '../../common/utils';
 import { EstadoRepository } from '../../estados';
 import { clearRedis } from '../../../config';
+import { ResendService } from '../../mailer/services/mailer.service';
 
 export class EnvioService {
-  constructor(private envioRepository: EnvioRepository) {}
+  constructor(
+    private envioRepository: EnvioRepository,
+    private mailerService: ResendService,
+  ) {}
 
   getAllEnvios = async (
     paginationDto: PaginationDto,
@@ -35,6 +39,13 @@ export class EnvioService {
       estado.id,
     );
     await clearRedis('reportes');
+
+    await this.mailerService.sendMail({
+      to: envio.user.email,
+      subject: 'Envio creado correctamente',
+      htmlContent: `Se ha creado un envio con el codigo ${code}`,
+    });
+
     return { message: 'Envio creado correctamente', data: envio };
   };
 

@@ -3,6 +3,7 @@ import { EnviosController } from '../controllers';
 import { EnvioRepository } from '../repositories/envios.repository';
 import { EnvioService } from '../services/envios.service';
 import { AuthMiddleware } from '../../common/middlewares/auth.middleware';
+import { ResendService } from '../../mailer/services/mailer.service';
 
 export class EnvioRoutes {
   static get routes(): Router {
@@ -127,7 +128,8 @@ export class EnvioRoutes {
      */
 
     const envioRepository = new EnvioRepository();
-    const envioService = new EnvioService(envioRepository);
+    const mailerService = new ResendService();
+    const envioService = new EnvioService(envioRepository, mailerService);
     const envioController = new EnviosController(envioService);
 
     /**
