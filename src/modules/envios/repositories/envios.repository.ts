@@ -415,4 +415,115 @@ export class EnvioRepository {
       connection.release();
     }
   }
+
+  async getReporteEnvios(filterSearch: FiltersSearch<Filters>) {
+    const { filters } = filterSearch;
+
+    const params = [];
+
+    // const searchValue = `%${search}%`;
+    // const searchParams = Array(11).fill(searchValue);
+
+    let FilterQuery = '';
+    // const params = [...searchParams];
+
+    if (filters.estado) {
+      FilterQuery += 'AND ue.ultimo_estado = ? ';
+      params.push(filters.estado);
+    }
+
+    if (filters.transportistaId && filters.transportistaId !== 0) {
+      FilterQuery += 'AND t.id = ? ';
+      params.push(filters.transportistaId);
+    }
+
+    if (filters.vehiculoId && filters.vehiculoId !== 0) {
+      FilterQuery += 'AND v.id = ? ';
+      params.push(filters.vehiculoId);
+    }
+
+    if (filters.fechaInicio) {
+      FilterQuery += 'AND e.created_at >= ? ';
+      params.push(filters.fechaInicio);
+    }
+
+    if (filters.fechaFin) {
+      FilterQuery += 'AND e.created_at <= ? ';
+      params.push(filters.fechaFin);
+    }
+
+    if (filters.usuarioId && filters.usuarioId !== 0) {
+      FilterQuery += 'AND u.id = ? ';
+      params.push(filters.usuarioId);
+    }
+
+    const cacheKey = `reportes:${JSON.stringify(filters)}`;
+
+    const cached = await getRedisCache(cacheKey);
+    if (cached) return cached;
+
+    const connection = await pool.getConnection();
+
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `WITH ultimo_estado AS (
+            SELECT 
+                ee.envio_id, 
+                ee.estado_id, 
+                es.name AS ultimo_estado,
+                ROW_NUMBER() OVER (PARTITION BY ee.envio_id ORDER BY ee.created_at DESC) AS rn
+            FROM envios_estados ee
+            INNER JOIN estados es ON ee.estado_id = es.id
+        ),
+        fecha_entrega AS (
+            SELECT 
+                ee.envio_id,
+                MIN(ee.created_at) AS fecha_entrega
+            FROM envios_estados ee
+            INNER JOIN estados es ON ee.estado_id = es.id
+            WHERE es.name = 'Entregado'
+            GROUP BY ee.envio_id
+        ),
+        metricas_transportista AS (
+            SELECT 
+                r.transportista_id,
+                COUNT(fe.envio_id) AS envios_completados,
+                AVG(TIMESTAMPDIFF(HOUR, e.created_at, fe.fecha_entrega)) AS promedio_horas_entrega
+            FROM envios e
+            INNER JOIN rutas r ON e.ruta_id = r.id
+            INNER JOIN fecha_entrega fe ON e.id = fe.envio_id
+            GROUP BY r.transportista_id
+        )
+        SELECT 
+            e.id, e.created_at, e.direccion, e.alto, e.ancho, 
+            e.peso, e.largo, e.tipo_producto, e.codigo,
+            u.id AS usuario_id, u.name, u.email,
+            ue.ultimo_estado,
+            r.id AS ruta_id, r.origen, r.destino, r.created_at AS ruta_creada,
+            r.estado AS ruta_estado, r.fecha_inicio, r.fecha_fin, r.active AS ruta_activa,
+            t.id AS transportista_id, t.nombre AS transportista_nombre, t.cedula AS transportista_cedula,
+            v.id AS vehiculo_id, v.volumen_maximo, v.peso_maximo, v.placa AS vehiculo_placa,
+            fe.fecha_entrega,
+            mt.envios_completados, mt.promedio_horas_entrega
+        FROM envios e
+        INNER JOIN usuarios u ON e.usuario_id = u.id
+        LEFT JOIN ultimo_estado ue ON ue.envio_id = e.id AND ue.rn = 1
+        LEFT JOIN rutas r ON e.ruta_id = r.id
+        LEFT JOIN transportistas t ON r.transportista_id = t.id
+        LEFT JOIN vehiculos v ON r.vehiculo_id = v.id
+        LEFT JOIN fecha_entrega fe ON e.id = fe.envio_id
+        LEFT JOIN metricas_transportista mt ON t.id = mt.transportista_id
+        WHERE e.active = 1  ${FilterQuery};`,
+        params,
+      );
+
+      await setRedisCache(cacheKey, rows);
+
+      return rows;
+    } catch (error) {
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
 }

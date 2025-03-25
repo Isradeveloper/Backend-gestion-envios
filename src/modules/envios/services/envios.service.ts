@@ -6,6 +6,7 @@ import { FiltersSearch } from '../../common/interfaces';
 import { Filters } from '../controllers';
 import { createRandomUnicCode } from '../../common/utils';
 import { EstadoRepository } from '../../estados';
+import { clearRedis } from '../../../config';
 
 export class EnvioService {
   constructor(private envioRepository: EnvioRepository) {}
@@ -33,6 +34,7 @@ export class EnvioService {
       code,
       estado.id,
     );
+    await clearRedis('reportes');
     return { message: 'Envio creado correctamente', data: envio };
   };
 
@@ -42,5 +44,11 @@ export class EnvioService {
     if (!estados) throw CustomError.notFound('Estados no encontrados');
 
     return { message: 'Estado obtenido correctamente', data: estados };
+  };
+
+  getReporteEnvios = async (filtersSearch: FiltersSearch<Filters>) => {
+    const reporte = await this.envioRepository.getReporteEnvios(filtersSearch);
+
+    return { message: 'Reporte obtenido correctamente', data: reporte };
   };
 }

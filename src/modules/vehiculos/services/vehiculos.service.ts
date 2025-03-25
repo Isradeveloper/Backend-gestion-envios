@@ -4,6 +4,7 @@ import { VehiculoRepository } from '../repositories/vehiculos.repository';
 import { PaginationDto } from '../../common/dtos';
 import { FiltersSearch } from '../../common/interfaces';
 import { Filters } from '../controllers';
+import { clearRedis } from '../../../config';
 
 export class VehiculoService {
   constructor(private vehiculoRepository: VehiculoRepository) {}
@@ -33,6 +34,7 @@ export class VehiculoService {
     const vehiculo = await this.vehiculoRepository.createVehiculo(
       createVehiculoDto,
     );
+    await clearRedis('reportes');
     return { message: 'Vehiculo creado correctamente', data: vehiculo };
   };
 

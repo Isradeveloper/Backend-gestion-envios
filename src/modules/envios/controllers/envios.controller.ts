@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, response, Response } from 'express';
 import { handleError } from '../../common/errors';
 import { EnvioService } from '../services/envios.service';
 import { validateDto } from '../../common/utils';
@@ -11,7 +11,8 @@ export interface Filters {
   fechaInicio: string;
   fechaFin: string;
   transportistaId: number;
-  usuarioId: number;
+  usuarioId?: number;
+  vehiculoId?: number;
 }
 export class EnviosController {
   constructor(private envioService: EnvioService) {}
@@ -71,6 +72,37 @@ export class EnviosController {
       const { code } = await validateDto(GetEstadosDto, req.params);
       const { message, data } = await this.envioService.getEstadosPorEnvio(
         code,
+      );
+      res.json({ message, data });
+    } catch (error) {
+      handleError(error, res);
+    }
+  };
+
+  getReportesEnvios = async (req: Request, res: Response) => {
+    try {
+      const {
+        estado = '',
+        search = '',
+        fechaInicio = '',
+        fechaFin = '',
+        transportistaId = 0,
+        vehiculoId = 0,
+      } = req.query;
+
+      const filtersSearch: FiltersSearch<Filters> = {
+        filters: {
+          estado: estado.toString(),
+          fechaInicio: fechaInicio.toString(),
+          fechaFin: fechaFin.toString(),
+          transportistaId: +transportistaId,
+          vehiculoId: +vehiculoId,
+        },
+        search: search.toString(),
+      };
+
+      const { message, data } = await this.envioService.getReporteEnvios(
+        filtersSearch,
       );
       res.json({ message, data });
     } catch (error) {

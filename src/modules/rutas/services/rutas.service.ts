@@ -53,6 +53,7 @@ export class RutaService {
       throw CustomError.badRequest('El transportista se encuentra en transito');
     }
 
+    await clearRedis('reportes');
     const ruta = await this.rutaRepository.createRuta(createRutaDto);
     return { message: 'Ruta creada correctamente', data: ruta };
   };
@@ -117,6 +118,7 @@ export class RutaService {
 
     await this.rutaRepository.asociateManyEnvios(rutaId, enviosIds);
 
+    await clearRedis('reportes');
     return { message: 'Envíos asociados correctamente' };
   };
 
@@ -167,6 +169,8 @@ export class RutaService {
 
       await clearSpecificRedis(estado?.codigo);
     }
+
+    await clearRedis('reportes');
 
     return { message: 'Estado de la ruta cambiado correctamente' };
   };

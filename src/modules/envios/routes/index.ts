@@ -270,6 +270,68 @@ export class EnvioRoutes {
      */
     router.get('/:code/estados', envioController.getEstadosPorEnvio);
 
+    /**
+     * @swagger
+     * /api/envios/reportes:
+     *   get:
+     *     tags:
+     *       - Envios
+     *     summary: Obtener reporte de envios
+     *     parameters:
+     *       - name: estado
+     *         in: query
+     *         required: false
+     *         description: estado del envío
+     *         schema:
+     *           type: string
+     *           example: "Pendiente"
+     *       - name: search
+     *         in: query
+     *         required: false
+     *         description: búsqueda
+     *         schema:
+     *           type: string
+     *           example: "123 Main St"
+     *       - name: fechaInicio
+     *         in: query
+     *         required: false
+     *         description: fecha de inicio
+     *         schema:
+     *           type: string
+     *           example: "2023-01-01"
+     *       - name: fechaFin
+     *         in: query
+     *         required: false
+     *         description: fecha de fin
+     *         schema:
+     *           type: string
+     *           example: "2023-01-31"
+     *       - name: transportistaId
+     *         in: query
+     *         required: false
+     *         description: id del transportista
+     *         schema:
+     *           type: integer
+     *           example: 1
+     *       - name: usuarioId
+     *         in: query
+     *         required: false
+     *         description: id del usuario
+     *         schema:
+     *           type: integer
+     *           example: 1
+     *     responses:
+     *       200:
+     *         description: Lista de envios
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: array
+     *               items:
+     *                 $ref: '#/components/schemas/Envio'
+     */
+    router.get('/reportes', envioController.getReportesEnvios);
+
     return router;
   }
 }

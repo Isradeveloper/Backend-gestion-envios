@@ -4,6 +4,7 @@ import { TransportistaRepository } from '../repositories/transportistas.reposito
 import { PaginationDto } from '../../common/dtos';
 import { FiltersSearch } from '../../common/interfaces';
 import { Filters } from '../controllers';
+import { clearRedis } from '../../../config';
 
 export class TransportistaService {
   constructor(private transportistaRepository: TransportistaRepository) {}
@@ -40,6 +41,7 @@ export class TransportistaService {
       await this.transportistaRepository.createTransportista(
         createTransportistaDto,
       );
+    await clearRedis('reportes');
     return {
       message: 'Transportista creado correctamente',
       data: transportista,
