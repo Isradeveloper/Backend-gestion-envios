@@ -3,6 +3,9 @@ FROM node:22.14-alpine AS deps
 
 WORKDIR /app
 
+# Instalar TypeScript globalmente con npm
+RUN npm install -g typescript
+
 # Instalar solo las dependencias
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile --production
