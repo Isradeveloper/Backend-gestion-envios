@@ -1,6 +1,7 @@
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 import express from 'express';
+import { envs } from './envs';
 
 const swaggerOptions = {
   swaggerDefinition: {
@@ -25,7 +26,7 @@ const swaggerOptions = {
       },
     ],
   },
-  apis: ['./src/**/*.ts'],
+  apis: !envs.PROD ? ['./src/**/*.ts'] : ['./dist/**/*.js'],
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
