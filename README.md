@@ -25,7 +25,7 @@ yarn install
 Para ejecutar el backend junto con Redis, usa el siguiente comando:
 
 ```sh
-docker-compose up -d
+ docker compose -f 'docker-compose-dev.yaml' up -d --build
 ```
 
 Esto iniciará el backend y Redis en contenedores Docker.
