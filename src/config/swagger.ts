@@ -7,9 +7,9 @@ const swaggerOptions = {
   swaggerDefinition: {
     openapi: '3.0.0',
     info: {
-      title: 'My API',
+      title: 'Backend Gestión de envios y logística',
       version: '1.0.0',
-      description: 'API documentation',
+      description: 'Realizado por: Israel Trujillo Dominguez',
     },
     components: {
       securitySchemes: {
